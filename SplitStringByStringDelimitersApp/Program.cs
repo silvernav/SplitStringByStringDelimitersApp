@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+
 
 namespace SplitStringByStringDelimitersApp
 {
@@ -24,29 +23,11 @@ namespace SplitStringByStringDelimitersApp
             splitter.Source = "The quick brown fox jumps over the lazy dog The quick brown fox jumps over the lazy dog";
             splitter.Delimiters = new List<string> { "quick", "jumps", "lazy" };
             splitter.Split();
-
-            List<Entry> del = splitter.DelimiterEntries;
-            List<int> delIndexes = del.Select(e => e.Index).ToList();
-            List<string> delValues = del.Select(e => e.Value).ToList();
-
-
-            List<Entry> x = splitter.ContentEntries;
-            List<int> xIndexes = x.Select(e => e.Index).ToList();
-            List<string> xValues = x.Select(e => e.Value).ToList();
-
-
-            List<Entry> z = splitter.AllEntries;
-            List<int> zIndexes = z.Select(e => e.Index).ToList();
-            List<string> zValues = z.Select(e => e.Value).ToList();
-
         }
     }
 
     public class StringSplitter
     {
-        private string source = "The quick brown fox jumps over the lazy dog The quick brown fox jumps over the lazy dog";
-        private List<string> delimiters = new List<string> { "quick", "jumps", "lazy" };
-
         public string Source { get; set; }
 
         public List<string> Delimiters { get; set; }
@@ -67,61 +48,38 @@ namespace SplitStringByStringDelimitersApp
                 delimiterEntries.AddRange(contentEntries);
 
                 //  Sort by indexes.
-                delimiterEntries = delimiterEntries.OrderBy(e => e.Index).ToList();
+                List<Entry> allEntries = delimiterEntries.OrderBy(e => e.Index).ToList();
 
-                return delimiterEntries;
+                return allEntries;
             }
         }
 
         public void Split()
         {
-            var delimiterEntries = new List<Entry>();
+            if (Source == null) throw new InvalidOperationException(@"String to split (Property Source) cannot be null");
+            if (Delimiters == null) throw new InvalidOperationException(@"Delimiters (Property Delimiters) cannot be null");
+
+            List<Entry> delimiterEntries = GetDelimiterEntries();
+
             var contentEntries = new List<Entry>();
 
-            GetDelimiterEntries(delimiterEntries);
-
-            delimiterEntries = delimiterEntries.OrderBy(e => e.Index).ToList();
-
-
-            string value;
             if (delimiterEntries.Count == 0)
             {
-                var singleEntry = new Entry(source, 0, source.Length);
-                contentEntries.Add(singleEntry);
-            }
-            else if (delimiterEntries.Count == 1)
-            {
-                //  Content entry before delimiter.
-                if (delimiterEntries.Single().Index > 0)
-                {
-                    value = source.Substring(0, delimiterEntries[0].Index);
-                    var startEntry = new Entry(value, delimiterEntries[0].Index, delimiterEntries[0].Index);
-                    contentEntries.Add(startEntry);
-                }
-
-                //  Content entry after last delimiter.
-                Entry last = delimiterEntries.Last();
-                if (last.Index + last.Length < source.Length)
-                {
-                    //  Get what comes after last delimter.
-                    value = source.Substring(last.Index + last.Length);
-                    var endEntry = new Entry(value, last.Index + last.Length, value.Length);
-                    contentEntries.Add(endEntry);
-                }
+                //  When no delimiters are found in source, the very source is one single content entry.
+                var singleContentEntry = new Entry(Source, 0, Source.Length);
+                contentEntries.Add(singleContentEntry);
             }
             else
             {
-                GetContentEntriesWhenMoreThanTwoDelimiters(delimiterEntries, contentEntries);
+                GetContentEntries(delimiterEntries, contentEntries);
             }
-
-            string check = string.Join("", contentEntries.Select(s => s.Value));
 
             //  Set properties.
             DelimiterEntries = delimiterEntries;
             ContentEntries = contentEntries;
         }
 
-        private void GetContentEntriesWhenMoreThanTwoDelimiters(List<Entry> delimiterEntries, List<Entry> contentEntries)
+        private void GetContentEntries(List<Entry> delimiterEntries, List<Entry> contentEntries)
         {
             string value;
 
@@ -129,26 +87,26 @@ namespace SplitStringByStringDelimitersApp
             Entry first = delimiterEntries.First();
             if (first.Index > 0)
             {
-                value = source.Substring(0, first.Index);
+                value = Source.Substring(0, first.Index);
                 var startEntry = new Entry(value, 0, value.Length);
                 contentEntries.Add(startEntry);
             }
 
             //  Content entries between first and last delimiter.
-            ManageBetweenFirstAndLast(delimiterEntries, contentEntries);
+            GentContentEntriesBetweenFirstAndLastDelimiterEntries(delimiterEntries, contentEntries);
 
             //  Content entry after last delimiter.
             Entry last = delimiterEntries.Last();
-            if (last.Index + last.Length < source.Length)
+            if (last.Index + last.Length < Source.Length)
             {
                 //  Get what comes after last delimter.
-                value = source.Substring(last.Index + last.Length);
+                value = Source.Substring(last.Index + last.Length);
                 var endEntry = new Entry(value, last.Index + last.Length, value.Length);
                 contentEntries.Add(endEntry);
             }
         }
 
-        private void ManageBetweenFirstAndLast(List<Entry> delimiterEntries, List<Entry> contentEntries)
+        private void GentContentEntriesBetweenFirstAndLastDelimiterEntries(List<Entry> delimiterEntries, List<Entry> contentEntries)
         {
             //  Manage content entries between first and last delimiter.
 
@@ -180,35 +138,42 @@ namespace SplitStringByStringDelimitersApp
                 {
                     //  We have a gap i.e. content between two delimiters.
                     //  We create a content entry and add it to otherEntries.
-                    string value = source.Substring(nextNoGapIndex, gapSize);
+                    string value = Source.Substring(nextNoGapIndex, gapSize);
                     var intermediateEntry = new Entry(value, nextNoGapIndex, gapSize);
                     contentEntries.Add(intermediateEntry);
                 }
             }
         }
 
-        private void GetDelimiterEntries(List<Entry> delimiterEntries)
+        private List<Entry> GetDelimiterEntries()
         {
             //
             //  Creates a list where each list item is a entry representing a delimiter:
             //  -   Value: e.g. ";" or "Name:" (ignore quotation marks).
             //  -   Index: Position in source.
             //  -   Length: Length of delimiter.
-            foreach (string delimiter in delimiters)
+
+            var delimiterEntries = new List<Entry>();
+
+            foreach (string delimiter in Delimiters)
             {
                 int searchIndex = 0;
                 int index;
                 do
                 {
-                    index = source.IndexOf(delimiter, searchIndex);
+                    index = Source.IndexOf(delimiter, searchIndex, StringComparison.Ordinal);
                     if (index != -1)
                     {
                         var entry = new Entry(delimiter, index, delimiter.Length);
                         delimiterEntries.Add(entry);
                     }
                     searchIndex = index + delimiter.Length;
-                } while (searchIndex <= source.Length && index != -1);
+                } while (searchIndex <= Source.Length && index != -1);
             }
+
+            delimiterEntries = delimiterEntries.OrderBy(e => e.Index).ToList();
+
+            return delimiterEntries;
         }
     }
 
